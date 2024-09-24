@@ -1,48 +1,36 @@
-import { NextResponse } from 'next/server';
-import formidable from 'formidable';
-import fs from 'fs';
-import path from 'path';
+import fs from "fs";
+import path from "path";
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+export async function POST(request) {
+  const formData = await request.formData();
+  const file = formData.get("file"); // O campo deve ser 'file'
 
-export async function POST(req) {
-  const form = new formidable.IncomingForm();
-
-  const { fields, files } = await new Promise((resolve, reject) => {
-    form.parse(req, (err, fields, files) => {
-      if (err) return reject(err);
-
-      // Extraindo os campos e garantindo que sejam strings
-      const parsedFields = {};
-      for (const key in fields) {
-        parsedFields[key] = Array.isArray(fields[key]) ? fields[key][0] : fields[key];
-      }
-
-      resolve({ fields: parsedFields, files });
+  if (!file) {
+    return new Response(JSON.stringify({ error: "No file uploaded." }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
     });
-  });
-
-  // Verifica se o arquivo existe
-  if (!files.file) {
-    return NextResponse.json({ error: 'File not found' }, { status: 400 });
   }
 
-  const file = files.file;
-
-  const uploadDir = path.join(process.cwd(), 'public/imagem-upload');
-
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+  // Defina o caminho onde a imagem será salva
+  const uploadsDir = path.join(process.cwd(), "public", "imagens");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true }); // Cria o diretório se não existir
   }
 
-  const data = fs.readFileSync(file.filepath);
-  const filePath = path.join(uploadDir, file.originalFilename || 'image');
+  // Salve a imagem na pasta public/imagens
+  const filePath = path.join(uploadsDir, file.name);
 
-  fs.writeFileSync(filePath, data);
+  // Crie um fluxo de escrita e salve o arquivo
+  const writableStream = fs.createWriteStream(filePath);
+  writableStream.write(await file.arrayBuffer());
+  writableStream.end();
 
-  return NextResponse.json({ filePath: `/imagem-upload/${file.originalFilename}` });
+  return new Response(
+    JSON.stringify({ message: "Image uploaded successfully." }),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }
+  );
 }
